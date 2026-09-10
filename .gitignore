@@ -1,0 +1,15 @@
+!.gitignore
+node_modules
+.next
+.open-next
+.wrangler
+out
+.env
+.env.local
+.env.*.local
+.dev.vars
+.env.local.deploy-bak
+.DS_Store
+*.log
+*.tsbuildinfo
+.vercel

@@ -1,0 +1,28 @@
+{
+  "name": "hiobuy-shipping-quotes-demo",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "International shipping quote calculator demo for the HIOBuy Fulfillment API.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "start": "next start",
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "1.20.6",
+    "next": "^15.5.24",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "wrangler": "^4.125.0"
+  }
+}
