@@ -9,7 +9,7 @@ Built with Next.js and designed to keep your HIOBuy API key server-side.
 
 ## Live demo
 
-[https://shipping-quotes.demo.hiobuy.com](https://shipping-quotes.demo.hiobuy.com)
+[HioBuy Shipping Quotes Live Demo](https://shipping-quotes.demo.hiobuy.com)
 
 ## What this demo covers
 
@@ -438,8 +438,9 @@ Keep in mind:
 
 For the complete API contract and additional HIOBuy capabilities, see:
 
-* [HIOBuy Developer Documentation](https://developers.hiobuy.com)
-* [HIOBuy OpenAPI Document](https://api.hiobuy.com/openapi.json)
+* [HioBuy Shipping Quotes API documentation](https://hiobuy.com/en/api-docs/fulfillment-freight-estimate)
+* [HioBuy Developer Platform](https://developers.hiobuy.com)
+* [HioBuy OpenAPI document](https://api.hiobuy.com/openapi.json)
 
 ## Related HIOBuy examples
 
