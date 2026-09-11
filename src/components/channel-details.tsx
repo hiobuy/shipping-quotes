@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { describePricingBasis, formatBillingBasis, formatCalculationModel, formatConvertedMoney, formatDeliveryMethod, formatEnumLabel, formatMultiPackageBilling, formatServicePrice, formatTransitTime } from "@/lib/shipping-format";
-import type { RateCard, ShippingChannel, ValueAddedService } from "@/lib/shipping-types";
+import type { ChannelRule, ChargeGroup, Money, RateCard, ShippingChannel, ShippingChargeItem, ShippingQuote, ShippingServiceOption, ValueAddedService } from "@/lib/shipping-types";
 
 type DetailState = { status: "loading" | "success" | "empty" | "error"; channel?: ShippingChannel; message?: string };
 const detailCache = new Map<string, ShippingChannel>();
 
-export function ChannelDetails({ code, countryCode, currency, rate, selectedServices, onToggleService, onClose }: {
+export function ChannelDetails({ code, countryCode, currency, rate, quote, selectedServices, onToggleService, onClose }: {
   code: string;
   countryCode: string;
   currency: string;
   rate: number;
+  quote?: ShippingQuote;
   selectedServices: string[];
   onToggleService: (service: ValueAddedService) => void;
   onClose: () => void;
@@ -49,12 +50,13 @@ export function ChannelDetails({ code, countryCode, currency, rate, selectedServ
     {state.status === "loading" && <div className="details-state"><div className="loader" /><p>Loading channel configuration…</p></div>}
     {state.status === "empty" && <div className="details-state"><h3>Channel not found</h3><p>{state.message}</p></div>}
     {state.status === "error" && <div className="details-state"><h3>Could not load details</h3><p>{state.message}</p><button type="button" onClick={() => void load()}>Try again</button></div>}
-    {state.status === "success" && state.channel && <ChannelDetailContent channel={state.channel} currency={currency} rate={rate} selectedServices={selectedServices} onToggleService={onToggleService} />}
+    {state.status === "success" && state.channel && <ChannelDetailContent channel={state.channel} quote={quote} currency={currency} rate={rate} selectedServices={selectedServices} onToggleService={onToggleService} />}
   </section>;
 }
 
-function ChannelDetailContent({ channel, currency, rate, selectedServices, onToggleService }: {
+function ChannelDetailContent({ channel, quote, currency, rate, selectedServices, onToggleService }: {
   channel: ShippingChannel;
+  quote?: ShippingQuote;
   currency: string;
   rate: number;
   selectedServices: string[];
@@ -85,13 +87,17 @@ function ChannelDetailContent({ channel, currency, rate, selectedServices, onTog
       {channel.rate_cards?.length ? <div className="rate-card-list">{channel.rate_cards.map((card) => <RateCardDetails key={card.region_code} card={card} regionName={channel.regions?.find((region) => region.code === card.region_code)?.name} currency={currency} rate={rate} />)}</div> : <p className="detail-note">No reference price rows are available.</p>}
     </DetailSection>
 
-    <DetailSection title="Value-added services">
-      {channel.value_added_services?.length ? <div className="service-list">{channel.value_added_services.map((service) => <ServiceRow key={service.code} service={service} currency={currency} rate={rate} selected={selectedServices.includes(service.code)} onToggle={() => onToggleService(service)} />)}</div> : <p className="detail-note">No value-added services returned.</p>}
+    <DetailSection title="Value-added services" emphasis={quote ? "This quote" : undefined}>
+      {quote && <ChargeGroupSummary label="Services in this quote" group={quote.charges?.channel_services} currency={currency} rate={rate} emptyCopy="No value-added service charge was included in this quote." />}
+      {channel.value_added_services?.length ? <div className="service-list">{channel.value_added_services.map((service) => <ServiceRow key={service.code} service={service} quoteOption={quote?.service_options?.find((option) => option.code === service.code)} chargeItem={quote?.charges?.channel_services?.items?.find((item) => item.code === service.code)} baseFreight={quote?.charges?.base_freight} currency={currency} rate={rate} selected={selectedServices.includes(service.code)} onToggle={() => onToggleService(service)} />)}</div> : <p className="detail-note">No value-added services returned.</p>}
+      <QuoteOnlyServiceCharges group={quote?.charges?.channel_services} configuredServices={channel.value_added_services} currency={currency} rate={rate} />
     </DetailSection>
 
-    <DetailSection title="Channel rules">
+    <DetailSection title="Channel rules" emphasis={quote ? "This quote" : undefined}>
+      {quote && <QuoteRuleCharges group={quote.charges?.channel_rules} currency={currency} rate={rate} />}
+      <h5 className="configuration-heading">Configured rules</h5>
       <p className="detail-note">{aggregationCopy(channel.rule_summary?.aggregation)} {capCopy(channel.rule_summary?.cap, currency, rate)} Pending or inapplicable rules are not included in quote totals.</p>
-      {channel.channel_rules?.items.length ? <div className="rule-list">{channel.channel_rules.items.map((rule, index) => <div key={rule.rule_id || rule.code || index}><b>{rule.name}</b><span>{rule.rule_type ? formatEnumLabel(rule.rule_type) : "Rule"} · {rule.charge_mode ? formatEnumLabel(rule.charge_mode) : "Calculated at quote time"}</span></div>)}</div> : <p className="detail-note">No additional channel rules apply.</p>}
+      {channel.channel_rules?.items.length ? <div className="configured-rule-list">{channel.channel_rules.items.map((rule, index) => <ConfiguredRuleCard key={rule.rule_id || rule.code || index} rule={rule} currency={currency} rate={rate} />)}</div> : <p className="detail-note">No additional channel rules apply.</p>}
     </DetailSection>
   </div>;
 }
@@ -171,11 +177,129 @@ function formatOriginalMoney(amountInFen: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountInFen / 100);
 }
 
-function ServiceRow({ service, currency, rate, selected, onToggle }: { service: ValueAddedService; currency: string; rate: number; selected: boolean; onToggle: () => void }) {
+function ChargeGroupSummary({ label, group, currency, rate, emptyCopy }: { label: string; group?: ChargeGroup | null; currency: string; rate: number; emptyCopy: string }) {
+  const amount = group?.amount ?? group?.known_amount;
+  return <div className="quote-charge-summary"><div><span>{label}</span><small>{formatCalculationStatus(group?.calculation_status)}{group?.amount == null && group?.known_amount != null ? " · known charges only" : ""}</small></div><strong>{amount == null ? "Pending" : formatConvertedMoney(amount, currency, rate)}</strong>{!group?.items?.length && <p>{emptyCopy}</p>}</div>;
+}
+
+function QuoteRuleCharges({ group, currency, rate }: { group?: ChargeGroup | null; currency: string; rate: number }) {
+  return <div className="actual-charge-block"><ChargeGroupSummary label="Rules charged in this quote" group={group} currency={currency} rate={rate} emptyCopy="No channel rule charge was included in this quote." /><p className="actual-rule-policy">{aggregationCopy(group?.aggregation)} {capCopy(group?.cap, currency, rate)} The group subtotal returned by the quote is authoritative.</p>{group?.items?.length ? <div className="actual-charge-list">{group.items.map((item, index) => <ActualChargeRow key={item.rule_id || item.code || index} item={item} currency={currency} rate={rate} />)}</div> : null}</div>;
+}
+
+function QuoteOnlyServiceCharges({ group, configuredServices, currency, rate }: { group?: ChargeGroup | null; configuredServices?: ValueAddedService[]; currency: string; rate: number }) {
+  const configuredCodes = new Set(configuredServices?.map((service) => service.code));
+  const unmatchedItems = group?.items?.filter((item) => !item.code || !configuredCodes.has(item.code)) || [];
+  if (!unmatchedItems.length) return null;
+  return <div className="actual-charge-list">{unmatchedItems.map((item, index) => <ActualChargeRow key={item.code || index} item={item} currency={currency} rate={rate} />)}</div>;
+}
+
+function ConfiguredRuleCard({ rule, currency, rate }: { rule: ChannelRule; currency: string; rate: number }) {
+  const conditions = rule.conditions || [];
+  const regionNames = rule.regions?.map((region) => region.name || region.code).filter(Boolean).join(", ");
+  return <article className="configured-rule-card">
+    <header><div><b>{rule.name || "Channel rule"}</b><small>{regionNames ? `Applies to ${regionNames}` : "Applies to matching destinations"}{rule.rule_id ? ` · Rule ${rule.rule_id}` : ""}</small></div><span>{rule.rule_type === "FORBID_ORDERING" ? "Order restriction" : "Surcharge"}</span></header>
+    <div className="configured-rule-body">
+      <div><h6>When it applies</h6>{conditions.length ? <><p>{rule.condition_match === "ANY" ? "Any one of these conditions:" : "All of these conditions:"}</p><ul>{conditions.map((condition, index) => <li key={index}>{formatConfiguredCondition(condition)}</li>)}</ul></> : <p>Evaluated by the quote service.</p>}</div>
+      <div><h6>Result</h6><strong>{formatRuleResult(rule, currency, rate)}</strong>{rule.formula && <p>{rule.formula}</p>}{(rule.min_charge || rule.max_charge) && <p>{formatRuleLimits(rule, currency, rate)}</p>}</div>
+    </div>
+  </article>;
+}
+
+function formatConfiguredCondition(condition: NonNullable<ChannelRule["conditions"]>[number]): string {
+  if (condition.parameter === "REMOTE_AREA" && condition.operator === "CONTAINS") return "Destination postal code is in the configured remote-area list";
+  const parameters: Record<string, string> = {
+    THREE_SIDE_SUM: "Sum of length, width, and height",
+    SHIPMENT_CHARGEABLE_WEIGHT: "Shipment chargeable weight",
+    LONGEST_SIDE: "Longest side",
+    ACTUAL_WEIGHT: "Actual weight",
+    VOLUMETRIC_WEIGHT: "Volumetric weight",
+    DECLARED_VALUE: "Declared value",
+    PACKAGE_COUNT: "Package count",
+  };
+  const operators: Record<string, string> = { GT: "is greater than", GTE: "is at least", LT: "is less than", LTE: "is at most", EQ: "equals", CONTAINS: "contains" };
+  const parameter = parameters[condition.parameter || ""] || formatEnumLabel(condition.parameter || "Condition");
+  const operator = operators[condition.operator || ""] || formatEnumLabel(condition.operator || "matches").toLowerCase();
+  return `${parameter} ${operator} ${formatConfiguredThreshold(condition.threshold_value, condition.unit)}`;
+}
+
+function formatConfiguredThreshold(value: Money | number | string | null | undefined, unit?: string | null): string {
+  if (value && typeof value === "object" && "amount" in value) return `${value.amount / 100} ${value.currency}`;
+  if (value == null) return "the configured value";
+  return `${value}${unit ? ` ${unit}` : ""}`;
+}
+
+function formatRuleResult(rule: ChannelRule, currency: string, rate: number): string {
+  if (rule.rule_type === "FORBID_ORDERING") return "This shipment cannot be ordered through this channel.";
+  if (rule.charge_mode === "FIXED" && rule.charge_value && typeof rule.charge_value === "object") return `Add ${formatConvertedMoney(rule.charge_value.amount, currency, rate)} per shipment.`;
+  if (rule.charge_mode === "BASE_FREIGHT_PERCENT" && typeof rule.charge_value === "number") return `Add ${rule.charge_value}% of the base freight.`;
+  if (rule.charge_mode === "DECLARED_VALUE_PERCENT" && typeof rule.charge_value === "number") return `Add ${rule.charge_value}% of the declared value.`;
+  if (rule.charge_mode === "FIXED" && typeof rule.charge_value === "number") return `Add ${rule.charge_value} per shipment.`;
+  return rule.charge_mode ? `${formatEnumLabel(rule.charge_mode)} charge calculated with the quote.` : "The quote service determines whether this shipment is allowed.";
+}
+
+function formatRuleLimits(rule: ChannelRule, currency: string, rate: number): string {
+  const limits = [];
+  if (rule.min_charge) limits.push(`minimum ${formatConvertedMoney(rule.min_charge.amount, currency, rate)}`);
+  if (rule.max_charge) limits.push(`maximum ${formatConvertedMoney(rule.max_charge.amount, currency, rate)}`);
+  return `Charge limits: ${limits.join(" · ")}.`;
+}
+
+function ActualChargeRow({ item, currency, rate }: { item: ShippingChargeItem; currency: string; rate: number }) {
+  return <div className="actual-charge-row"><div><b>{item.name || item.code || "Channel charge"}</b><span>{item.code || item.rule_id || "Applied rule"}{item.source ? ` · ${formatEnumLabel(item.source)}` : ""}{item.included_in_total === false ? " · not included in total" : " · included in total"}</span>{item.matched_conditions?.map((condition, index) => <small key={index}>Matched: {formatCondition(condition)}</small>)}<small>{formatActualFormula(item, currency, rate)}</small></div><strong>{formatMaybeMoney(item.amount, currency, rate)}</strong></div>;
+}
+
+function ServiceRow({ service, quoteOption, chargeItem, baseFreight, currency, rate, selected, onToggle }: { service: ValueAddedService; quoteOption?: ShippingServiceOption; chargeItem?: ShippingChargeItem; baseFreight?: Money; currency: string; rate: number; selected: boolean; onToggle: () => void }) {
   const price = service.region_prices[0];
   const priceText = price ? `${formatServicePrice(price, currency, rate)} ${describePricingBasis(service.pricing_basis)}` : "Calculated with the quote";
   const mandatory = service.request_mode === "MANDATORY";
-  return <div className="service-row"><div><b>{service.name || service.code}</b><span className={mandatory ? "mandatory" : "optional-service"}>{formatEnumLabel(service.request_mode)}</span><p>{service.description || priceText}</p><small>{priceText} · {formatEnumLabel(service.pricing_scope)}</small></div>{!mandatory && <button type="button" className={selected ? "service-selected" : ""} onClick={onToggle}>{selected ? "Selected" : "Add to quote"}</button>}</div>;
+  const changedAfterQuote = !mandatory && quoteOption && Boolean(quoteOption.selected) !== selected;
+  const actualAmount = chargeItem?.amount ?? quoteOption?.amount;
+  return <div className="service-row"><div className="service-copy"><b>{service.name || service.code}</b><span className={mandatory ? "mandatory" : "optional-service"}>{formatEnumLabel(service.request_mode)}</span><p>{service.description || priceText}</p><small>Configured charge: {priceText} · {formatEnumLabel(service.pricing_scope)}</small>{quoteOption && <div className={`service-quote-state ${quoteOption.included_in_total ? "included" : ""}`}><span>This quote · {formatCalculationStatus(quoteOption.calculation_status)}</span><b>{actualAmount == null ? "Not charged" : formatMaybeMoney(actualAmount, currency, rate)}</b><p>{chargeItem ? formatServiceChargeFormula(chargeItem, quoteOption, baseFreight, currency, rate) : quoteOption.reason || serviceOptionFormula(quoteOption, currency, rate)}</p>{changedAfterQuote && <em>Selection changed. Compare rates again to update this charge.</em>}</div>}</div>{!mandatory && <button type="button" className={selected ? "service-selected" : ""} onClick={onToggle}>{selected ? "Selected" : "Add to quote"}</button>}</div>;
+}
+
+function formatServiceChargeFormula(item: ShippingChargeItem, option: ShippingServiceOption, baseFreight: Money | undefined, currency: string, rate: number): string {
+  const price = option.region_price;
+  if (typeof price?.value === "number" && price.value_unit === "PERCENT") {
+    const basis = option.pricing_basis === "BASE_FREIGHT_PERCENT" && baseFreight ? `Base freight ${formatConvertedMoney(baseFreight.amount, currency, rate)}` : formatEnumLabel((option.pricing_basis || "charge basis").replace("_PERCENT", ""));
+    const fixed = price.fixed_charge?.amount ? ` + ${formatConvertedMoney(price.fixed_charge.amount, currency, rate)} fixed charge` : "";
+    return `${basis} × ${price.value}%${fixed} = ${formatMaybeMoney(item.amount, currency, rate)}`;
+  }
+  return formatActualFormula(item, currency, rate);
+}
+
+function serviceOptionFormula(option: ShippingServiceOption, currency: string, rate: number): string {
+  const price = option.region_price;
+  if (typeof price?.value === "number" && price.value_unit === "PERCENT") return `${price.value}% ${describePricingBasis(option.pricing_basis || "")}; final amount calculated by the quote service.`;
+  if (price?.fixed_charge) return `${formatConvertedMoney(price.fixed_charge.amount, currency, rate)} ${describePricingBasis(option.pricing_basis || "")}.`;
+  return option.selected ? "Calculated by the shipping quote service." : "Not selected for this quote.";
+}
+
+function formatActualFormula(item: ShippingChargeItem, currency: string, rate: number): string {
+  if (item.formula) return item.formula;
+  if (item.quantity != null && item.unit_price) return `${item.quantity} × ${formatConvertedMoney(item.unit_price.amount, currency, rate)} = ${formatMaybeMoney(item.amount, currency, rate)}`;
+  return item.reason || (item.calculation_status === "REVIEW_REQUIRED" ? "Final amount requires warehouse review." : "Calculated by the shipping quote service.");
+}
+
+function formatCalculationStatus(status?: string): string {
+  const labels: Record<string, string> = { CALCULATED: "Calculated", NOT_SELECTED: "Not selected", PENDING_INPUT: "Waiting for shipment data", REVIEW_REQUIRED: "Warehouse review required", NOT_APPLICABLE: "Not applicable" };
+  return labels[status || ""] || (status ? formatEnumLabel(status) : "No calculation status");
+}
+
+function formatMaybeMoney(value: Money | number | null | undefined, currency: string, rate: number): string {
+  const amount = typeof value === "number" ? value : value?.amount;
+  return amount == null ? "Pending" : formatConvertedMoney(amount, currency, rate);
+}
+
+function formatCondition(condition: NonNullable<ShippingChargeItem["matched_conditions"]>[number]): string {
+  const actual = formatConditionValue(condition.actual_value, condition.unit);
+  const threshold = formatConditionValue(condition.threshold_value, condition.unit);
+  const operators: Record<string, string> = { GT: ">", GTE: "≥", LT: "<", LTE: "≤", EQ: "=" };
+  return `${formatEnumLabel(condition.parameter || "condition")} ${actual} ${operators[condition.operator || ""] || formatEnumLabel(condition.operator || "matches")} ${threshold}`;
+}
+
+function formatConditionValue(value: Money | number | string | null | undefined, unit?: string | null): string {
+  if (value && typeof value === "object" && "amount" in value) return `${value.amount / 100} ${value.currency}`;
+  return `${value ?? "—"}${unit ? ` ${unit}` : ""}`;
 }
 
 function DetailSection({ title, emphasis, children }: { title: string; emphasis?: string; children: React.ReactNode }) {

@@ -62,11 +62,20 @@ export type ChannelRule = {
   code?: string | null;
   rule_id?: string | null;
   name: string;
+  regions?: Array<{ code?: string; name?: string }>;
+  condition_match?: "ALL" | "ANY" | string | null;
+  conditions?: Array<{
+    parameter?: string;
+    operator?: string;
+    threshold_value?: Money | number | string | null;
+    unit?: string | null;
+  }>;
   rule_type?: string | null;
   charge_mode?: string | null;
   charge_value?: number | Money | null;
   min_charge?: Money | null;
   max_charge?: Money | null;
+  formula?: string | null;
 };
 
 export type ShippingChannel = {
@@ -121,7 +130,54 @@ export type ChannelCatalog = {
 };
 
 export type QuoteWarning = { code?: string; message?: string; affects?: string[] };
-export type ChargeGroup = { amount?: number | null; known_amount?: number; currency?: string; items?: Array<{ name?: string; amount?: Money | null }> };
+export type ShippingChargeItem = {
+  code?: string;
+  name?: string;
+  source?: string;
+  reason?: string;
+  formula?: string | null;
+  rule_id?: string | null;
+  condition_match?: string | null;
+  rule_type?: string | null;
+  charge_mode?: string | null;
+  charge_value?: Money | number | null;
+  pricing_basis?: string;
+  quantity?: number;
+  unit_price?: Money | null;
+  amount?: Money | number | null;
+  estimated?: boolean;
+  calculation_status?: string;
+  included_in_total?: boolean;
+  matched_conditions?: Array<{ parameter?: string; operator?: string; actual_value?: Money | number | string | null; threshold_value?: Money | number | string | null; unit?: string | null }>;
+};
+export type ChargeGroup = {
+  amount?: number | null;
+  known_amount?: number | null;
+  currency?: string;
+  calculation_status?: string;
+  missing_fields?: string[];
+  items?: ShippingChargeItem[];
+  aggregation?: string;
+  cap?: Money | null;
+};
+export type ShippingServiceOption = {
+  code: string;
+  name?: string;
+  description?: string | null;
+  request_mode?: string;
+  pricing_basis?: string;
+  required_fields?: string[];
+  selection_status?: string;
+  selected?: boolean;
+  quantity?: number;
+  region_price?: { region_code?: string; value?: number | Money | null; value_unit?: string; fixed_charge?: Money | null } | null;
+  calculation_status?: string;
+  missing_fields?: string[];
+  amount?: Money | null;
+  included_in_total?: boolean;
+  reason_code?: string | null;
+  reason?: string | null;
+};
 export type ShippingQuote = {
   channel: ShippingChannel;
   available: boolean;
@@ -130,6 +186,7 @@ export type ShippingQuote = {
   matched_region?: { code?: string; name?: string; match_type?: string } | null;
   weights?: { actual?: { value: number; unit: string }; volumetric?: { value: number; unit: string }; chargeable?: { value: number; unit: string } } | null;
   transit_time?: ReferenceTransitTime | null;
+  service_options?: ShippingServiceOption[];
   charges?: { base_freight?: Money; channel_services?: ChargeGroup; channel_rules?: ChargeGroup; outbound_services?: ChargeGroup; inbound_services?: ChargeGroup; adjustments?: ChargeGroup } | null;
   total?: Money | null;
   known_total: Money;

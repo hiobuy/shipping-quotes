@@ -8,7 +8,7 @@ import { sortShippingQuotes } from "@/lib/shipping-sort";
 import type { QuoteSortField, SortDirection } from "@/lib/shipping-sort";
 import type { ShippingQuote, ShippingQuoteResponse, ValueAddedService } from "@/lib/shipping-types";
 
-const chargeAmount = (group: { amount?: number | null; known_amount?: number }) => group.amount ?? group.known_amount;
+const chargeAmount = (group: { amount?: number | null; known_amount?: number | null }) => group.amount ?? group.known_amount;
 const fallbackCountryCodes = ["US", "CA", "GB", "DE", "AU", "JP"];
 type DestinationsSource = "live" | "fallback" | "empty";
 
@@ -159,7 +159,7 @@ export function ShippingCalculator() {
         {result?.disclaimer && <p className="disclaimer">ⓘ {result.disclaimer}</p>}
       </section>
     </div>
-    {detailCode && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailCode(null); }}><div className="details-dialog" role="dialog" aria-modal="true" aria-label="Shipping channel details"><ChannelDetails code={detailCode} countryCode={country} currency={displayCurrency} rate={cnyExchangeRate} selectedServices={selectedServices} onToggleService={toggleService} onClose={() => setDetailCode(null)} /></div></div>}
+    {detailCode && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailCode(null); }}><div className="details-dialog" role="dialog" aria-modal="true" aria-label="Shipping channel details"><ChannelDetails code={detailCode} countryCode={country} currency={displayCurrency} rate={cnyExchangeRate} quote={result?.quotes.find((quote) => quote.channel.code === detailCode)} selectedServices={selectedServices} onToggleService={toggleService} onClose={() => setDetailCode(null)} /></div></div>}
     <section className="how-it-works"><p className="eyebrow">How this demo works</p><h2>Three APIs, one server-safe flow</h2><div className="flow"><div><b>Browser</b><span>Collects declared shipment data and service choices.</span></div><i>→</i><div><b>Local Route Handlers</b><span>Validate requests and keep the API key server-side.</span></div><i>→</i><div><b>HIOBuy API</b><span>Lists channels, returns channel details, and calculates quotes.</span></div></div><p>The browser calls <code>/api/shipping/*</code>. Only the local handlers call <code>https://api.hiobuy.com/v1/fulfillment/shipping/*</code>.</p></section>
   </main>;
 }
