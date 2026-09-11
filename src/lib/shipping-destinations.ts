@@ -1,16 +1,12 @@
-import type { ChannelCatalog } from "./shipping-types";
+import type { FulfillmentLocation } from "./shipping-types";
 
-/** Country coverage comes from every visible channel page; invalid codes are ignored. */
-export function collectDestinationCountryCodes(catalogs: ChannelCatalog[]): string[] {
+/** Destination coverage comes from active fulfillment locations; invalid codes are ignored. */
+export function collectDestinationCountryCodes(locations: FulfillmentLocation[]): string[] {
   const codes = new Set<string>();
-  for (const catalog of catalogs) {
-    for (const channel of catalog.items ?? []) {
-      for (const region of channel.regions ?? []) {
-        for (const rawCode of region.countries ?? []) {
-          const code = rawCode.trim().toUpperCase();
-          if (/^[A-Z]{2}$/.test(code)) codes.add(code);
-        }
-      }
+  for (const location of locations) {
+    for (const rawCode of location.supported_destinations ?? []) {
+      const code = rawCode.trim().toUpperCase();
+      if (/^[A-Z]{2}$/.test(code)) codes.add(code);
     }
   }
   return [...codes];

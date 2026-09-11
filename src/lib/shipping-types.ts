@@ -129,6 +129,19 @@ export type ChannelCatalog = {
   request_id: string;
 };
 
+export type FulfillmentLocation = {
+  id: string;
+  name: string;
+  status: string;
+  receiving_status: string;
+  supported_destinations: string[];
+};
+
+export type FulfillmentLocationCatalog = {
+  data: FulfillmentLocation[];
+  request_id?: string;
+};
+
 export type QuoteWarning = { code?: string; message?: string; affects?: string[] };
 export type ShippingChargeItem = {
   code?: string;

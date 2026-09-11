@@ -164,25 +164,23 @@ Channel codes are URL-encoded before being passed into the public channel-detail
 
 ## Destination discovery
 
-The destination selector is generated from the shipping catalog rather than from a hard-coded global country list.
+The destination selector is generated from the active fulfillment locations rather than from a hard-coded global country list.
 
 The server requests:
 
 ```http
-GET /v1/fulfillment/shipping/channels?include=regions&page_size=50
+GET /v1/fulfillment/locations?status=ACTIVE
 ```
-
-across all available pages without applying a `country_code` filter.
 
 It then collects, validates, normalizes, and deduplicates:
 
 ```text
-items[].regions[].countries[]
+data[].supported_destinations[]
 ```
 
 Country values remain ISO 3166-1 alpha-2 codes. The browser may use `Intl.DisplayNames` to display localized country names.
 
-This represents catalog-level destination coverage for the channels visible to the warehouse associated with the current API key.
+This represents destination coverage reported by the active fulfillment locations visible to the warehouse associated with the current API key.
 
 It does **not** guarantee that a particular shipment can use a destination.
 

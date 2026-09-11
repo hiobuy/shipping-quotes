@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildShippingChannelDetailPath, parseFlatChannelDetail, readBusinessFailure } from "../src/lib/shipping-api-contract.ts";
 import { formatBillingBasis, formatCalculationModel, formatDeliveryMethod, formatMultiPackageBilling, formatServicePrice, formatTransitTime } from "../src/lib/shipping-format.ts";
 import { collectDestinationCountryCodes, reconcileSelectedCountry } from "../src/lib/shipping-destinations.ts";
-import type { ChannelCatalog } from "../src/lib/shipping-types.ts";
+import type { FulfillmentLocation } from "../src/lib/shipping-types.ts";
 import { sortShippingQuotes } from "../src/lib/shipping-sort.ts";
 import type { ShippingQuote } from "../src/lib/shipping-types.ts";
 
@@ -52,20 +52,20 @@ test("turns shipping contract enums into customer-readable labels", () => {
   assert.equal(formatMultiPackageBilling("PER_PACKAGE", "SUM_PACKAGE_CHARGES"), "Price each package separately, then add the charges");
 });
 
-function catalog(items: ChannelCatalog["items"], page: number): ChannelCatalog {
-  return { items, pagination: { page, page_size: 50, total: items.length, has_more: false }, monetary_unit: "CNY_minor", generated_at: "2026-09-10T00:00:00Z", request_id: `page-${page}` };
+function location(id: string, destinations: string[]): FulfillmentLocation {
+  return { id, name: id, status: "ACTIVE", receiving_status: "OPEN", supported_destinations: destinations };
 }
 
-test("collects, normalizes, validates, and deduplicates countries across pages", () => {
+test("collects, normalizes, validates, and deduplicates fulfillment destinations", () => {
   const countries = collectDestinationCountryCodes([
-    catalog([{ code: "A", name: "A", regions: [{ code: "R1", name: "One", match_type: "COUNTRY_REGION", postal_code_required: false, reference_transit_time: null, countries: ["us", "CA", "USA"] }] }], 1),
-    catalog([{ code: "B", name: "B", regions: [{ code: "R2", name: "Two", match_type: "COUNTRY_REGION", postal_code_required: false, reference_transit_time: null, countries: ["US", " gb ", "1A"] }] }], 2),
+    location("one", ["us", "CA", "USA"]),
+    location("two", ["US", " gb ", "1A"]),
   ]);
   assert.deepEqual(countries, ["US", "CA", "GB"]);
 });
 
 test("distinguishes successful empty destination data", () => {
-  assert.deepEqual(collectDestinationCountryCodes([catalog([], 1)]), []);
+  assert.deepEqual(collectDestinationCountryCodes([]), []);
 });
 
 test("replaces a selection that is not in refreshed live coverage", () => {

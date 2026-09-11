@@ -1,6 +1,6 @@
 import { buildShippingChannelDetailPath, parseFlatChannelDetail, readBusinessFailure } from "./shipping-api-contract";
 import type { ShippingChannelDetailOptions } from "./shipping-api-contract";
-import type { ChannelCatalog, ShippingChannel, ShippingQuoteInput, ShippingQuoteResponse } from "./shipping-types";
+import type { ChannelCatalog, FulfillmentLocationCatalog, ShippingChannel, ShippingQuoteInput, ShippingQuoteResponse } from "./shipping-types";
 export { buildShippingChannelDetailPath } from "./shipping-api-contract";
 
 export class HiobuyApiError extends Error {
@@ -63,6 +63,10 @@ export async function listShippingChannels(options: ShippingChannelListOptions =
   if (options.countryCode) params.set("country_code", options.countryCode);
   if (options.include?.length) params.set("include", options.include.join(","));
   return hiobuyRequest<ChannelCatalog>(`/v1/fulfillment/shipping/channels?${params}`, { method: "GET" });
+}
+
+export async function listFulfillmentLocations(): Promise<FulfillmentLocationCatalog> {
+  return hiobuyRequest<FulfillmentLocationCatalog>("/v1/fulfillment/locations?status=ACTIVE", { method: "GET" });
 }
 
 /** Detail is a flat channel object; there is no data or pagination wrapper. */
